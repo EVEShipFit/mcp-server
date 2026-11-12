@@ -48,6 +48,7 @@ A tool call that takes more than a second of CPU is logged with who made it and 
 
 - `GET /`: what this is, and how to add it to an AI assistant.
 - `POST /mcp`: the MCP endpoint.
+- `GET /mcp/server-card`: the [MCP Server Card](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/seps/2127-mcp-server-cards.md), describing this server.
 - `GET /healthz`: answers `ok` once the server is up.
 - `/.well-known/oauth-protected-resource`, `/.well-known/oauth-authorization-server`, `/register`, `/authorize`, `/token`: how MCP clients log in.
 

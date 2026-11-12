@@ -9,11 +9,13 @@ use axum::middleware::from_fn_with_state;
 use axum::routing::get;
 use clap::{Parser, Subcommand};
 use esf_mcp::{Server, data};
+use rmcp::ServerHandler;
 use rmcp::transport::streamable_http_server::session::never::NeverSessionManager;
 use rmcp::transport::streamable_http_server::{StreamableHttpServerConfig, StreamableHttpService};
 use tokio::signal::unix::{SignalKind, signal};
 use tokio::task::spawn_blocking;
 
+mod card;
 mod client;
 mod eve;
 mod limit;
@@ -181,7 +183,9 @@ async fn main() {
         }
     };
     eprintln!("mcp-server: on SDE {}", version(&dir));
-    let current = Arc::new(RwLock::new(Server::new(game)));
+    let server = Server::new(game);
+    let server_version = server.get_info().server_info.version;
+    let current = Arc::new(RwLock::new(server));
     tokio::spawn(update(cache_dir, dir, current.clone()));
 
     let config = StreamableHttpServerConfig::default()
@@ -214,6 +218,7 @@ async fn main() {
             .merge(login::routes(login)),
         None => mcp.layer(login::cors()),
     }
+    .merge(card::routes(&mcp_url, &server_version))
     .merge(web::routes(web::About {
         mcp_url,
         requests_per_minute: args.rate_limit,
