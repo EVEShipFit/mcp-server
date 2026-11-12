@@ -20,6 +20,7 @@ mod limit;
 mod login;
 mod meter;
 mod token;
+mod web;
 
 const LISTEN: &str = "0.0.0.0:8080";
 const UPDATE_EVERY: Duration = Duration::from_secs(60 * 60);
@@ -201,6 +202,10 @@ async fn main() {
         config,
     );
     let mcp = Router::new().nest_service("/mcp", mcp);
+    let mcp_url = login.as_ref().map_or_else(
+        || "http://localhost:8080/mcp".to_string(),
+        |login| login.resource(),
+    );
     let app = match login {
         Some(login) => mcp
             .layer(from_fn_with_state(limits, limit::limit))
@@ -209,6 +214,11 @@ async fn main() {
             .merge(login::routes(login)),
         None => mcp.layer(login::cors()),
     }
+    .merge(web::routes(web::About {
+        mcp_url,
+        requests_per_minute: args.rate_limit,
+        cpu_seconds_per_minute: args.cpu_limit,
+    }))
     .route("/healthz", get(|| async { "ok" }));
 
     let listener = match tokio::net::TcpListener::bind(LISTEN).await {
