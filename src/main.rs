@@ -16,6 +16,7 @@ use tokio::task::spawn_blocking;
 
 mod client;
 mod eve;
+mod limit;
 mod login;
 mod token;
 
@@ -59,6 +60,10 @@ struct Args {
     /// The EVE Online SSO to log in with.
     #[arg(long, env = "EVE_SSO_URL", default_value = eve::SSO_URL)]
     eve_sso_url: String,
+
+    /// How many requests a minute each character may make.
+    #[arg(long, env = "RATE_LIMIT", default_value_t = 60, value_parser = clap::value_parser!(u32).range(1..))]
+    rate_limit: u32,
 
     /// Serve without asking anyone to log in.
     #[arg(long, env = "NO_LOGIN")]
@@ -190,6 +195,10 @@ async fn main() {
     let mcp = Router::new().nest_service("/mcp", mcp);
     let app = match login {
         Some(login) => mcp
+            .layer(from_fn_with_state(
+                Arc::new(limit::Limits::new(args.rate_limit)),
+                limit::limit,
+            ))
             .layer(from_fn_with_state(Arc::clone(&login), login::require))
             .layer(login::cors())
             .merge(login::routes(login)),

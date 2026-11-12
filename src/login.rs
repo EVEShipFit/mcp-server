@@ -223,7 +223,7 @@ pub fn cors() -> CorsLayer {
         .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(AllowHeaders::mirror_request())
-        .expose_headers([header::WWW_AUTHENTICATE])
+        .expose_headers([header::WWW_AUTHENTICATE, header::RETRY_AFTER])
 }
 
 /// Let a request through only with an access token for this server; it then carries the [`Character`].

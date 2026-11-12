@@ -35,6 +35,7 @@ docker run -p 8080:8080 -v esf-mcp-cache:/cache \
 | `EVE_CLIENT_ID`, `EVE_CLIENT_SECRET` | The EVE Online application. |
 | `SIGNING_KEY` | At least 32 characters. Run several instances with the same key; changing it logs everyone out. |
 | `EVE_SSO_URL` | Default `https://login.eveonline.com`. |
+| `RATE_LIMIT` | Requests a minute each character may make; default 60. Counted per instance. |
 | `NO_LOGIN` | `true` serves without login, for use on your own machine. |
 | `CACHE_DIR` | Where the SDE is kept; `/cache` in the image. |
 
