@@ -36,12 +36,15 @@ docker run -p 8080:8080 -v esf-mcp-cache:/cache \
 | `SIGNING_KEY` | At least 32 characters. Run several instances with the same key; changing it logs everyone out. |
 | `EVE_SSO_URL` | Default `https://login.eveonline.com`. |
 | `RATE_LIMIT` | Requests a minute each character may make; default 60. Counted per instance. |
+| `CPU_LIMIT` | Seconds of CPU time a minute each character's tool calls may use; default 10. A call that takes longer may run, after which every request of that character waits until the budget is back. Counted per instance. |
 | `NO_LOGIN` | `true` serves without login, for use on your own machine. |
 | `CACHE_DIR` | Where the SDE is kept; `/cache` in the image. |
 
 On first start it downloads the SDE (about 25 MB) into `/cache`; the volume keeps it across restarts.
 A bind mount instead must be writable by uid 65532.
 Every hour it checks whether a new SDE is due, and switches to it without a restart.
+A character runs at most 2 requests at once.
+A tool call that takes more than a second of CPU is logged with who made it and its arguments.
 
 - `POST /mcp`: the MCP endpoint.
 - `GET /healthz`: answers `ok` once the server is up.

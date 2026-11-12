@@ -18,6 +18,7 @@ mod client;
 mod eve;
 mod limit;
 mod login;
+mod meter;
 mod token;
 
 const LISTEN: &str = "0.0.0.0:8080";
@@ -64,6 +65,10 @@ struct Args {
     /// How many requests a minute each character may make.
     #[arg(long, env = "RATE_LIMIT", default_value_t = 60, value_parser = clap::value_parser!(u32).range(1..))]
     rate_limit: u32,
+
+    /// How many seconds of CPU time a minute each character may use.
+    #[arg(long, env = "CPU_LIMIT", default_value_t = 10, value_parser = clap::value_parser!(u32).range(1..))]
+    cpu_limit: u32,
 
     /// Serve without asking anyone to log in.
     #[arg(long, env = "NO_LOGIN")]
@@ -182,12 +187,15 @@ async fn main() {
         .with_legacy_session_mode(false)
         .with_json_response(true)
         .disable_allowed_hosts();
+    let limits = Arc::new(limit::Limits::new(args.rate_limit, args.cpu_limit));
+    let metered_limits = Arc::clone(&limits);
     let mcp = StreamableHttpService::new(
         move || {
-            Ok(current
+            let server = current
                 .read()
                 .unwrap_or_else(|error| error.into_inner())
-                .clone())
+                .clone();
+            Ok(meter::Metered::new(server, Arc::clone(&metered_limits)))
         },
         Arc::new(NeverSessionManager::default()),
         config,
@@ -195,10 +203,7 @@ async fn main() {
     let mcp = Router::new().nest_service("/mcp", mcp);
     let app = match login {
         Some(login) => mcp
-            .layer(from_fn_with_state(
-                Arc::new(limit::Limits::new(args.rate_limit)),
-                limit::limit,
-            ))
+            .layer(from_fn_with_state(limits, limit::limit))
             .layer(from_fn_with_state(Arc::clone(&login), login::require))
             .layer(login::cors())
             .merge(login::routes(login)),
