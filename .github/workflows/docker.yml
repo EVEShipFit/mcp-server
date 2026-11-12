@@ -40,18 +40,29 @@ jobs:
 
       - name: Smoke test
         run: |
-          docker run -d --name server -p 8080:8080 mcp-server:test
-          for i in $(seq 1 120); do curl -sf localhost:8080/healthz && break; sleep 1; done
+          docker run -d --name open -p 8080:8080 -e NO_LOGIN=true mcp-server:test
+          docker run -d --name login -p 8081:8080 \
+            -e PUBLIC_URL=https://mcp.example.com \
+            -e EVE_CLIENT_ID=smoke -e EVE_CLIENT_SECRET=smoke \
+            -e SIGNING_KEY=a-signing-key-for-the-smoke-test-only \
+            mcp-server:test
+          for port in 8080 8081; do
+            for i in $(seq 1 120); do curl -sf localhost:$port/healthz && break; sleep 1; done
+          done
+
+          fail() { echo "$1"; docker logs open; docker logs login; exit 1; }
           result=$(curl -sf localhost:8080/mcp \
             -H "Content-Type: application/json" \
             -H "Accept: application/json, text/event-stream" \
             -H "MCP-Protocol-Version: 2025-06-18" \
             -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"calculate_fit","arguments":{"fit":"[Rifter, smoke]\n200mm AutoCannon II, EMP S\n"}}}' \
             || true)
-          if echo "$result" | grep -q dps; then exit 0; fi
-          echo "$result"
-          docker logs server
-          exit 1
+          echo "$result" | grep -q dps || fail "calculate_fit: $result"
+
+          headers=$(curl -s -o /dev/null -D - localhost:8081/mcp -X POST)
+          echo "$headers" | grep -q "^HTTP/1.1 401" || fail "no 401: $headers"
+          echo "$headers" | grep -qi '^www-authenticate: Bearer resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource/mcp"' || fail "no challenge: $headers"
+          curl -sf localhost:8081/.well-known/oauth-authorization-server | grep -q '"issuer":"https://mcp.example.com"' || fail "no metadata"
 
       - name: Lowercase image name
         if: github.event_name != 'pull_request'
