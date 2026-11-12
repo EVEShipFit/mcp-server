@@ -8,7 +8,7 @@ use axum::body::Bytes;
 use axum::extract::{DefaultBodyLimit, Query, Request, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::middleware::Next;
-use axum::response::{Html, IntoResponse, Redirect, Response};
+use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Form, Json, Router};
 use base64::Engine;
@@ -23,6 +23,7 @@ use url::Url;
 use crate::client::{self, Client};
 use crate::eve::{Character, Eve};
 use crate::token::{Kind, Signer, now};
+use crate::web;
 
 const REQUEST_LIFETIME: Duration = Duration::from_secs(10 * 60);
 const CODE_LIFETIME: Duration = Duration::from_secs(60);
@@ -146,7 +147,8 @@ impl Login {
         format!("{}{path}", self.base)
     }
 
-    fn resource(&self) -> String {
+    /// Where MCP clients connect.
+    pub fn resource(&self) -> String {
         self.url("/mcp")
     }
 
@@ -570,44 +572,8 @@ fn no_store(response: impl IntoResponse) -> Response {
     response
 }
 
-fn escape(text: &str) -> String {
-    text.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&#39;")
-}
-
-fn html(status: StatusCode, body: &str) -> Response {
-    let document = format!(
-        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">\
-         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\
-         <title>EVEShip.fit</title><style>body{{font-family:system-ui,sans-serif;max-width:32rem;\
-         margin:4rem auto;padding:0 1rem;line-height:1.5}}button{{font-size:1rem;padding:.5rem 1rem}}</style>\
-         </head><body>{body}</body></html>"
-    );
-    let mut response = (status, Html(document)).into_response();
-    let headers = response.headers_mut();
-    headers.insert(
-        header::CONTENT_SECURITY_POLICY,
-        HeaderValue::from_static(
-            "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'",
-        ),
-    );
-    headers.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
-    headers.insert(
-        header::X_CONTENT_TYPE_OPTIONS,
-        HeaderValue::from_static("nosniff"),
-    );
-    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-    response
-}
-
 fn page(status: StatusCode, message: &str) -> Response {
-    html(
-        status,
-        &format!("<h1>EVEShip.fit</h1><p>{}</p>", escape(message)),
-    )
+    web::message(status, message)
 }
 
 fn consent(login: &Login, client: &Client, redirect_uri: &str, pending: &str) -> Response {
@@ -623,25 +589,29 @@ fn consent(login: &Login, client: &Client, redirect_uri: &str, pending: &str) ->
     let local = Url::parse(redirect_uri).is_ok_and(|url| is_local(&url));
     let warning = match local {
         true => {
-            "<p>That is an app on this computer. If you did not just start one, close this page.</p>"
+            "<p class=\"warning\">That is an app on this computer. If you did not just start one, close this page.</p>"
         }
         false => "",
     };
     let body = format!(
-        "<h1>EVEShip.fit</h1>\
-         <p><strong>{name}</strong> wants to calculate ship fits for you.</p>\
-         <p>You log in with your EVE Online character; it only tells us who you are. \
-         Afterwards you are sent back to <strong>{destination}</strong>.</p>{warning}\
+        "<div class=\"card dialog\">\
+         <h1><img src=\"/logo.png\" width=\"48\" height=\"48\" alt=\"\">Log in to EVEShip.fit</h1>\
+         <p><strong>{name}</strong> wants to calculate ship fits for you with \
+         <a href=\"https://eveship.fit\">EVEShip.fit</a>.</p>\
+         <p>You log in with your EVE Online character. That only tells us who you are; \
+         we ask for no scopes and read nothing from your account.</p>\
+         <p>Afterwards you are sent back to <strong>{destination}</strong>.</p>{warning}\
          <form method=\"post\" action=\"{action}\">\
          <input type=\"hidden\" name=\"pending\" value=\"{pending}\">\
          <button type=\"submit\">Log in with EVE Online</button></form>\
-         <p>Did you not start this? Close this page.</p>",
-        name = escape(&client.name),
-        destination = escape(&destination),
-        action = escape(&login.url("/login")),
-        pending = escape(pending),
+         <p class=\"muted\" style=\"margin:16px 0 0\">Did you not start this? Close this page.</p>\
+         </div>",
+        name = web::escape(&client.name),
+        destination = web::escape(&destination),
+        action = web::escape(&login.url("/login")),
+        pending = web::escape(pending),
     );
-    html(StatusCode::OK, &body)
+    web::page(StatusCode::OK, "Log in to EVEShip.fit", &body)
 }
 
 #[cfg(test)]

@@ -46,6 +46,7 @@ Every hour it checks whether a new SDE is due, and switches to it without a rest
 A character runs at most 2 requests at once.
 A tool call that takes more than a second of CPU is logged with who made it and its arguments.
 
+- `GET /`: what this is, and how to add it to an AI assistant.
 - `POST /mcp`: the MCP endpoint.
 - `GET /healthz`: answers `ok` once the server is up.
 - `/.well-known/oauth-protected-resource`, `/.well-known/oauth-authorization-server`, `/register`, `/authorize`, `/token`: how MCP clients log in.
