@@ -1,25 +1,28 @@
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
+use std::time::Duration;
 
 use axum::Router;
 use axum::routing::get;
 use clap::{Parser, Subcommand};
-use esf_mcp::{Game, Server, data};
+use esf_mcp::{Server, data};
 use rmcp::transport::streamable_http_server::session::never::NeverSessionManager;
 use rmcp::transport::streamable_http_server::{StreamableHttpServerConfig, StreamableHttpService};
 use tokio::signal::unix::{SignalKind, signal};
+use tokio::task::spawn_blocking;
 
 const LISTEN: &str = "0.0.0.0:8080";
+const UPDATE_EVERY: Duration = Duration::from_secs(60 * 60);
 
 /// MCP server, over HTTP, that calculates EVE Online ship fits.
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// A directory with `sde.dat` and `names.dat`. Default: download and cache the newest SDE.
-    #[arg(long, env = "SDE_DIR")]
-    sde_dir: Option<PathBuf>,
+    /// Where the downloaded SDE is kept. Default: a directory in the system's temporary directory.
+    #[arg(long, env = "CACHE_DIR")]
+    cache_dir: Option<PathBuf>,
 
     #[command(subcommand)]
     command: Option<Command>,
@@ -31,17 +34,38 @@ enum Command {
     Healthcheck,
 }
 
-fn load(sde_dir: Option<&Path>) -> Result<Game, String> {
-    match sde_dir {
-        Some(dir) => Game::new(
-            data::read(&dir.join("sde.dat"))?,
-            Some(data::read(&dir.join("names.dat"))?),
-        ),
-        None => {
-            let cache_dir = std::env::temp_dir().join("esf-mcp-server");
-            data::load(&cache_dir)
+async fn update(cache_dir: PathBuf, mut dir: PathBuf, current: Arc<RwLock<Server>>) {
+    let mut interval = tokio::time::interval(UPDATE_EVERY);
+    interval.tick().await;
+    loop {
+        interval.tick().await;
+        let (cache, known) = (cache_dir.clone(), dir.clone());
+        match blocking(move || data::update(&cache, &known)).await {
+            Ok(Some((newest, game))) => {
+                *current.write().unwrap_or_else(|error| error.into_inner()) = Server::new(game);
+                eprintln!("mcp-server: now on SDE {}", version(&newest));
+                dir = newest;
+            }
+            Ok(None) => {}
+            Err(error) => eprintln!("mcp-server: could not update the SDE: {error}"),
         }
     }
+}
+
+/// Run `work` on a thread that may block.
+async fn blocking<T: Send + 'static>(
+    work: impl FnOnce() -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+    spawn_blocking(work)
+        .await
+        .map_err(|error| error.to_string())
+        .and_then(|result| result)
+}
+
+fn version(dir: &Path) -> String {
+    dir.file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default()
 }
 
 fn healthcheck() -> bool {
@@ -70,20 +94,32 @@ async fn main() {
         std::process::exit(if healthcheck() { 0 } else { 1 });
     }
 
-    let server = match load(args.sde_dir.as_deref()) {
-        Ok(game) => Server::new(game),
+    let cache_dir = args
+        .cache_dir
+        .unwrap_or_else(|| std::env::temp_dir().join("esf-mcp-server"));
+    let cache = cache_dir.clone();
+    let (dir, game) = match blocking(move || data::load(&cache)).await {
+        Ok(loaded) => loaded,
         Err(error) => {
             eprintln!("mcp-server: {error}");
             std::process::exit(1);
         }
     };
+    eprintln!("mcp-server: on SDE {}", version(&dir));
+    let current = Arc::new(RwLock::new(Server::new(game)));
+    tokio::spawn(update(cache_dir, dir, current.clone()));
 
     let config = StreamableHttpServerConfig::default()
         .with_legacy_session_mode(false)
         .with_json_response(true)
         .disable_allowed_hosts();
     let mcp = StreamableHttpService::new(
-        move || Ok(server.clone()),
+        move || {
+            Ok(current
+                .read()
+                .unwrap_or_else(|error| error.into_inner())
+                .clone())
+        },
         Arc::new(NeverSessionManager::default()),
         config,
     );

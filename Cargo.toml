@@ -12,7 +12,7 @@ path = "src/main.rs"
 [dependencies]
 axum = "0.8"
 clap = { version = "4.5", features = ["derive", "env"] }
-esf-mcp = "14.2"
+esf-mcp = "15"
 rmcp = { version = "3.9", default-features = false, features = ["server", "transport-streamable-http-server"] }
 tokio = { version = "1.54", features = ["macros", "net", "rt-multi-thread", "signal"] }
 

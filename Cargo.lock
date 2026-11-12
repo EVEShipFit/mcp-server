@@ -404,18 +404,18 @@ checksum = "66074ee50739a5923bd63974190c6a35038a001da1be8c50a277be65225633df"
 
 [[package]]
 name = "esf-data"
-version = "14.2.1"
+version = "15.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c60fa686acbd3985b2a7c7fae96b5b7894f61d6a6ef9285e9f39f04943fd592"
+checksum = "74c5f8c223a522887a941b21572e5be39d58534fb9872802f7fcc25cc0d63228"
 dependencies = [
  "flatbuffers",
 ]
 
 [[package]]
 name = "esf-dogma-engine"
-version = "14.2.1"
+version = "15.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a05c0607ddb23e11f47ef76c8424c3c470075a5eff8dba61f91c887587c1b4f5"
+checksum = "87009a35df6ca33247fc14322290ac4f9c1898aec52c9046afcaca6c562aa6be"
 dependencies = [
  "esf-data",
  "serde",
@@ -425,9 +425,9 @@ dependencies = [
 
 [[package]]
 name = "esf-format"
-version = "14.2.1"
+version = "15.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e69588d92f0dd52c1a5a29f82dec1b242fa9cdf735d169a841508dac8ba3080a"
+checksum = "99d8c3ee886c6ae7fb83dc8fdbbea31b224c61b78ba062caa22c17a625b3521b"
 dependencies = [
  "elsa",
  "esf",
@@ -438,9 +438,9 @@ dependencies = [
 
 [[package]]
 name = "esf-mcp"
-version = "14.2.1"
+version = "15.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6b7e31718b806ccdb7d10bad0fed481e6ee2472e2019b7b21490d74cb7b7675"
+checksum = "2de18af3faad07ff219667db10b2670bdfbc9027f60d6497df473fdbafb023e6"
 dependencies = [
  "base64",
  "clap",
