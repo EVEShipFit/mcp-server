@@ -1,0 +1,21 @@
+[package]
+name = "esf-mcp-server"
+version = "0.0.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[[bin]]
+name = "mcp-server"
+path = "src/main.rs"
+
+[dependencies]
+axum = "0.8"
+clap = { version = "4.5", features = ["derive", "env"] }
+esf-mcp = "15"
+rmcp = { version = "3.9", default-features = false, features = ["server", "transport-streamable-http-server"] }
+tokio = { version = "1.54", features = ["macros", "net", "rt-multi-thread", "signal"] }
+
+[profile.release]
+lto = true
+codegen-units = 1

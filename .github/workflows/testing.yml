@@ -1,0 +1,40 @@
+name: Testing
+
+on:
+  push:
+    branches:
+    - main
+  pull_request:
+    branches:
+    - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  testing:
+    name: Testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v7
+
+    - name: Install Rust toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v2
+      with:
+        toolchain: stable
+        components: rustfmt, clippy
+
+    - name: Check formatting
+      run: |
+        cargo fmt --check
+
+    - name: Run clippy
+      run: |
+        cargo clippy --locked --all-targets -- -D warnings
